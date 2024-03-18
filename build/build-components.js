@@ -71,12 +71,17 @@ export async function buildComponents(baseDir) {
     let eventUnregistrations = [];
 
     for (let attr of component.attributes ?? []) {
-      ifaceProps.push(`  /**
-   * ${linewrapComment(attr.description)}
-   */
-  ${attr.fieldName}?: ${attr.type?.text ?? "any"};`);
-      attrExpand.push(`${attr.fieldName}: ${attr.fieldName}Attr`);
-      attrMap.push(`"${attr.name}": ${attr.fieldName}Attr,`);
+      ifaceProps.push(
+        `/**
+         * ${linewrapComment(attr.description)}
+         */
+        ${attr.fieldName}?: ${attr.type?.text ?? "any"};`
+      );
+
+      if (attr.name != attr.fieldName) {
+        attrExpand.push(`${attr.fieldName}: ${attr.fieldName}Attr`);
+        attrMap.push(`"${attr.name}": ${attr.fieldName}Attr,`);
+      }
     }
 
     for (let event of component.events ?? []) {
@@ -90,14 +95,18 @@ export async function buildComponents(baseDir) {
         `if (${event.reactName}) { el.removeEventListener("${event.name}", ${event.reactName}); }`,
         `if (${event.reactName}Capture) { el.removeEventListener("${event.name}", ${event.reactName}, true); }`
       );
-      ifaceProps.push(`  /**
-   * ${linewrapComment(event.description)}
-   */
-  ${event.reactName}?: ReactEventHandler<HTMLElement>;`);
-      ifaceProps.push(`  /**
-   * ${linewrapComment(event.description)}
-   */
-  ${event.reactName}Capture?: ReactEventHandler<HTMLElement>;`);
+      ifaceProps.push(
+        `  /**
+         * ${linewrapComment(event.description)}
+         */
+        ${event.reactName}?: ReactEventHandler<HTMLElement>;`
+      );
+      ifaceProps.push(
+        `  /**
+         * ${linewrapComment(event.description)}
+         */
+        ${event.reactName}Capture?: ReactEventHandler<HTMLElement>;`
+      );
     }
 
     let source = await prettier.format(
