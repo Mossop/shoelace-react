@@ -65,7 +65,7 @@ export async function buildComponents(baseDir) {
     );
 
     let ifaceProps = [];
-    let attrExpand = [];
+    let attrExpand = ["className", "children"];
     let attrMap = [];
     let eventProps = [];
     let eventRegistrations = [];
@@ -133,13 +133,12 @@ import { useEffect, useState, useCallback, forwardRef, createElement } from "rea
  * @param {${propsInterface}} props
  * @returns {ReactNode}
  */
-export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}${
-        attrExpand.length ? "," : ""
-      } children, ...props }, outerRef) {
+export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}, ...props }, outerRef) {
   let [component, setComponent] = useState();
 
   let attrs = {
     ${attrMap.join("\n")}
+    "class": className,
     ...props,
   };
 
@@ -177,7 +176,7 @@ export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}${
     "${tagName}",
     {
       ...attrs,
-      ref: setComponent,
+      ref: updateComponent,
       suppressHydrationWarning: true,
     },
     children
