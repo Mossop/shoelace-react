@@ -1,14 +1,13 @@
 {
   "name": "shoelace-react",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "description": "React wrappers around the shoelace web components.",
   "main": "index.js",
   "types": "index.d.ts",
   "typings": "index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "node build.js",
-    "install": "node build.js"
+    "build": "node build.js"
   },
   "repository": {
     "type": "git",
@@ -24,8 +23,8 @@
     "url": "https://github.com/Mossop/shoelace-react/issues"
   },
   "homepage": "https://github.com/Mossop/shoelace-react#readme",
-  "dependencies": {
-    "@shoelace-style/shoelace": "^2.14.0",
+  "devDependencies": {
+    "@shoelace-style/shoelace": "2.14.0",
     "prettier": "^3.2.5"
   }
 }
