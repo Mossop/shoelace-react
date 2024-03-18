@@ -15,7 +15,7 @@ export async function buildBundle(baseDir) {
   );
 
   await esbuild.build({
-    entryPoints: [path.join(shoelaceBase, "cdn", "shoelace.js")],
+    entryPoints: [path.join(shoelaceBase, "dist", "shoelace.js")],
     bundle: true,
     minify: true,
     outfile: path.join(cdnDir, "shoelace.js"),
@@ -30,4 +30,13 @@ export async function buildBundle(baseDir) {
       path.join(themes, `${theme}.css`)
     );
   }
+
+  fs.mkdirSync(path.join(cdnDir, "assets"), { recursive: true });
+  fs.cpSync(
+    path.join(path.join(shoelaceBase, "cdn", "assets")),
+    path.join(cdnDir, "assets"),
+    {
+      recursive: true,
+    }
+  );
 }
