@@ -2,3 +2,5 @@
 /.git/
 /.gitignore
 /build.js
+/build
+

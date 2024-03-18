@@ -1,4 +1,5 @@
 /node_modules/
 /components/
+/cdn/
 index.js
 index.d.ts
