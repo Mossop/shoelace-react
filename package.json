@@ -25,7 +25,8 @@
   },
   "homepage": "https://github.com/Mossop/shoelace-react#readme",
   "dependencies": {
-    "@shoelace-style/shoelace": "2.14.0"
+    "@shoelace-style/shoelace": "2.14.0",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "esbuild": "^0.20.2",
