@@ -120,7 +120,7 @@ export async function buildComponents(baseDir) {
       `
 /* eslint-disable react/prop-types */
 import { memo, forwardRef, createElement } from "react";
-import { useComponentProps, useComponentRef } from "../util";
+import { useComponentProps, useComponentRef } from "../util.js";
 
 const PROP_MAP = ${JSON.stringify(componentPropMap)};
 
