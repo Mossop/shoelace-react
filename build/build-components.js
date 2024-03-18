@@ -125,7 +125,7 @@ export async function buildComponents(baseDir) {
     let source = await prettier.format(
       `
 /* eslint-disable react/prop-types */
-import { useRef, useEffect, useState, useCallback, forwardRef, createElement } from "react";
+import { useEffect, useState, useCallback, forwardRef, createElement } from "react";
 
 /**
  * ${linewrapComment(component.summary)}
