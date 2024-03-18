@@ -140,10 +140,14 @@ export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}${
 
   let attrs = {
     ${attrMap.join("\n")}
-    ref: setComponent,
     ...props,
-    suppressHydrationWarning: true,
   };
+
+  for (let key of Object.keys(attrs)) {
+    if (attrs[key] === false || attrs[key] === undefined || attrs[key] === null) {
+      delete attrs[key];
+    }
+  }
 
   let updateComponent = useCallback((element) => {
     setComponent(element);
@@ -169,7 +173,15 @@ export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}${
     };
   }, [component, ${eventProps.join(", ")}]);
 
-  return createElement("${tagName}", attrs, children);
+  return createElement(
+    "${tagName}",
+    {
+      ...attrs,
+      ref: setComponent,
+      suppressHydrationWarning: true,
+    },
+    children
+  );
 });
     `,
       {
