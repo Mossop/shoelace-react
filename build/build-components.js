@@ -50,6 +50,7 @@ export async function buildComponents(baseDir) {
   for (let component of components(metadata)) {
     let componentName = component.name;
 
+    let eventNames = new Set();
     let propsInterface = `${componentName}Props`;
     let tagName = component.tagName;
     let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
@@ -78,41 +79,53 @@ export async function buildComponents(baseDir) {
         ${attr.fieldName}?: ${attr.type?.text ?? "any"};`
       );
 
-      if (attr.name != attr.fieldName) {
-        attrExpand.push(`${attr.fieldName}: ${attr.fieldName}Attr`);
+      let attrDefault = attr.default ?? null;
+      if (attrDefault == "''" || attrDefault == "false") {
+        attrDefault = null;
+      }
+
+      if (attrDefault || attr.name != attr.fieldName) {
+        let expansion = `${attr.fieldName}: ${attr.fieldName}Attr`;
+        if (attrDefault) {
+          expansion = `${expansion} = ${attrDefault}`;
+        }
+
+        attrExpand.push(expansion);
         attrMap.push(`"${attr.name}": ${attr.fieldName}Attr,`);
       }
     }
 
     for (let event of component.events ?? []) {
+      eventNames.add(event.eventName);
+
       attrExpand.push(event.reactName, `${event.reactName}Capture`);
       eventProps.push(event.reactName, `${event.reactName}Capture`);
       eventRegistrations.push(
-        `if (${event.reactName}) { el.addEventListener("${event.name}", ${event.reactName}); }`,
-        `if (${event.reactName}Capture) { el.addEventListener("${event.name}", ${event.reactName}Capture, true); }`
+        `if (${event.reactName}) { component.addEventListener("${event.name}", ${event.reactName}); }`,
+        `if (${event.reactName}Capture) { component.addEventListener("${event.name}", ${event.reactName}Capture, true); }`
       );
       eventUnregistrations.push(
-        `if (${event.reactName}) { el.removeEventListener("${event.name}", ${event.reactName}); }`,
-        `if (${event.reactName}Capture) { el.removeEventListener("${event.name}", ${event.reactName}, true); }`
+        `if (${event.reactName}) { component.removeEventListener("${event.name}", ${event.reactName}); }`,
+        `if (${event.reactName}Capture) { component.removeEventListener("${event.name}", ${event.reactName}, true); }`
       );
       ifaceProps.push(
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}?: ReactEventHandler<HTMLElement>;`
+        ${event.reactName}?: (event: ${event.eventName}) => void;`
       );
       ifaceProps.push(
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}Capture?: ReactEventHandler<HTMLElement>;`
+        ${event.reactName}Capture?: (event: ${event.eventName}) => void;`
       );
     }
 
     let source = await prettier.format(
       `
 /* eslint-disable react/prop-types */
-import { useRef, useEffect, createElement } from "react";
+import { useRef, useEffect, useState, useCallback, forwardRef, createElement } from "react";
 
 /**
  * ${linewrapComment(component.summary)}
@@ -120,32 +133,44 @@ import { useRef, useEffect, createElement } from "react";
  * @param {${propsInterface}} props
  * @returns {ReactNode}
  */
-export default function ${componentName}({ ${attrExpand.join(",")}${
+export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}${
         attrExpand.length ? "," : ""
-      } children, ...props }) {
-  let elementRef = useRef();
+      } children, ...props }, outerRef) {
+  let [component, setComponent] = useState();
 
   let attrs = {
     ${attrMap.join("\n")}
-    ref: elementRef,
-    ...props
+    ref: setComponent,
+    ...props,
+    suppressHydrationWarning: true,
   };
 
+  let updateComponent = useCallback((element) => {
+    setComponent(element);
+
+    if (outerRef) {
+      if (typeof outerRef == "function") {
+        outerRef(element);
+      } else {
+        outerRef.current = element;
+      }
+    }
+  }, [outerRef]);
+
   useEffect(() => {
-    if (!elementRef.current) {
+    if (!component) {
       return;
     }
 
-    let el = elementRef.current;
     ${eventRegistrations.join("\n")}
 
     return () => {
       ${eventUnregistrations.join("\n")}
     };
-  }, [${eventProps.join(", ")}]);
+  }, [component, ${eventProps.join(", ")}]);
 
   return createElement("${tagName}", attrs, children);
-}
+});
     `,
       {
         parser: "babel-ts",
@@ -154,11 +179,17 @@ export default function ${componentName}({ ${attrExpand.join(",")}${
 
     fs.writeFileSync(componentFile, source, "utf8");
 
+    let eventsImport =
+      eventNames.size > 0
+        ? `import type { ${[...eventNames].join(", ")} } from "@shoelace-style/shoelace";\n`
+        : "";
+
     source = await prettier.format(
       `
 import type { ReactNode, HTMLAttributes, ReactEventHandler } from "react";
-
+${eventsImport}
 export interface ${propsInterface} extends HTMLAttributes<HTMLElement> {
+  ref?: Ref<T>
 ${ifaceProps.join("\n")}
 }
 
