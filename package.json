@@ -1,6 +1,6 @@
 {
   "name": "shoelace-react",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "React wrappers around the shoelace web components.",
   "main": "index.js",
   "types": "index.d.ts",
