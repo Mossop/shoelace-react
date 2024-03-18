@@ -2,11 +2,15 @@ import fs from "fs";
 import path from "path";
 import prettier from "prettier";
 
+const PRETTIER_CONFIG = {
+  parser: "babel-ts",
+};
+
 function* components(metadata) {
   for (let module of metadata.modules) {
     for (let declaration of module.declarations) {
       if (declaration.customElement) {
-        yield declaration;
+        yield [module.path, declaration];
       }
     }
   }
@@ -47,10 +51,10 @@ export async function buildComponents(baseDir) {
   let indexJs = [];
   let indexDts = [];
 
-  for (let component of components(metadata)) {
+  for (let [module, component] of components(metadata)) {
     let componentName = component.name;
 
-    let eventNames = new Set();
+    let eventNames = new Map();
     let propsInterface = `${componentName}Props`;
     let tagName = component.tagName;
     let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
@@ -65,11 +69,10 @@ export async function buildComponents(baseDir) {
     );
 
     let ifaceProps = [];
-    let attrExpand = ["className", "children"];
-    let attrMap = [];
-    let eventProps = [];
-    let eventRegistrations = [];
-    let eventUnregistrations = [];
+
+    let eventDefs = {};
+    let componentPropMap = {};
+    let attrDefaults = [];
 
     for (let attr of component.attributes ?? []) {
       ifaceProps.push(
@@ -79,35 +82,26 @@ export async function buildComponents(baseDir) {
         ${attr.fieldName}?: ${attr.type?.text ?? "any"};`
       );
 
-      let attrDefault = attr.default ?? null;
-      if (attrDefault == "''" || attrDefault == "false") {
-        attrDefault = null;
+      if (attr.default && attr.default != "''" && attr.default != "false") {
+        attrDefaults.push(`${attr.fieldName}: ${attr.default}`);
       }
 
-      if (attrDefault || attr.name != attr.fieldName) {
-        let expansion = `${attr.fieldName}: ${attr.fieldName}Attr`;
-        if (attrDefault) {
-          expansion = `${expansion} = ${attrDefault}`;
-        }
-
-        attrExpand.push(expansion);
-        attrMap.push(`"${attr.name}": ${attr.fieldName}Attr,`);
+      if (attr.name != attr.fieldName) {
+        componentPropMap[attr.fieldName] = attr.name;
       }
     }
 
     for (let event of component.events ?? []) {
-      eventNames.add(event.eventName);
+      let eventTypes = eventNames.get(event.eventName);
+      if (!eventTypes) {
+        eventNames.set(event.eventName, [`"${event.name}"`]);
+      } else {
+        eventTypes.push(`"${event.name}"`);
+      }
 
-      attrExpand.push(event.reactName, `${event.reactName}Capture`);
-      eventProps.push(event.reactName, `${event.reactName}Capture`);
-      eventRegistrations.push(
-        `if (${event.reactName}) { component.addEventListener("${event.name}", ${event.reactName}); }`,
-        `if (${event.reactName}Capture) { component.addEventListener("${event.name}", ${event.reactName}Capture, true); }`
-      );
-      eventUnregistrations.push(
-        `if (${event.reactName}) { component.removeEventListener("${event.name}", ${event.reactName}); }`,
-        `if (${event.reactName}Capture) { component.removeEventListener("${event.name}", ${event.reactName}, true); }`
-      );
+      eventDefs[event.reactName] = [event.name, false];
+      eventDefs[`${event.reactName}Capture`] = [event.name, true];
+
       ifaceProps.push(
         `  /**
          * ${linewrapComment(event.description)}
@@ -125,7 +119,16 @@ export async function buildComponents(baseDir) {
     let source = await prettier.format(
       `
 /* eslint-disable react/prop-types */
-import { useEffect, useState, useCallback, forwardRef, createElement } from "react";
+import { memo, forwardRef, createElement } from "react";
+import { useComponentProps, useComponentRef } from "../util";
+
+const PROP_MAP = ${JSON.stringify(componentPropMap)};
+
+const PROP_DEFAULTS = {
+${attrDefaults.join(",\n")}
+};
+
+const EVENT_DEFINITIONS = ${JSON.stringify(eventDefs)};
 
 /**
  * ${linewrapComment(component.summary)}
@@ -133,74 +136,42 @@ import { useEffect, useState, useCallback, forwardRef, createElement } from "rea
  * @param {${propsInterface}} props
  * @returns {ReactNode}
  */
-export default forwardRef(function ${componentName}({ ${attrExpand.join(",")}, ...props }, outerRef) {
-  let [component, setComponent] = useState();
-
-  let attrs = {
-    ${attrMap.join("\n")}
-    "class": className,
-    ...props,
-  };
-
-  for (let key of Object.keys(attrs)) {
-    if (attrs[key] === false || attrs[key] === undefined || attrs[key] === null) {
-      delete attrs[key];
-    }
-  }
-
-  let updateComponent = useCallback((element) => {
-    setComponent(element);
-
-    if (outerRef) {
-      if (typeof outerRef == "function") {
-        outerRef(element);
-      } else {
-        outerRef.current = element;
-      }
-    }
-  }, [outerRef]);
-
-  useEffect(() => {
-    if (!component) {
-      return;
-    }
-
-    ${eventRegistrations.join("\n")}
-
-    return () => {
-      ${eventUnregistrations.join("\n")}
-    };
-  }, [component, ${eventProps.join(", ")}]);
+export default memo(forwardRef(function ${componentName}(props, outerRef) {
+  let [componentProps, events, children] = useComponentProps(props, PROP_MAP, PROP_DEFAULTS, EVENT_DEFINITIONS);
+  let componentRef = useComponentRef(outerRef, events, EVENT_DEFINITIONS);
 
   return createElement(
     "${tagName}",
     {
-      ...attrs,
-      ref: updateComponent,
+      ...componentProps,
+      ref: componentRef,
       suppressHydrationWarning: true,
     },
     children
   );
-});
+}));
     `,
-      {
-        parser: "babel-ts",
-      }
+      PRETTIER_CONFIG
     );
 
     fs.writeFileSync(componentFile, source, "utf8");
 
-    let eventsImport =
-      eventNames.size > 0
-        ? `import type { ${[...eventNames].join(", ")} } from "@shoelace-style/shoelace";\n`
-        : "";
+    let eventsDef = Array.from(
+      eventNames.entries(),
+      ([name, types]) =>
+        `export type ${name} = ShoelaceEvent<${componentName}, ${types.join(" | ")}>;`
+    );
 
     source = await prettier.format(
       `
 import type { ReactNode, HTMLAttributes, ReactEventHandler } from "react";
-${eventsImport}
-export interface ${propsInterface} extends HTMLAttributes<HTMLElement> {
-  ref?: Ref<T>
+import type ${componentName} from "@shoelace-style/shoelace/dist/${module}";
+import type { ShoelaceEvent } from "../util";
+
+${eventsDef.join("\n")}
+
+export interface ${propsInterface} extends HTMLAttributes<${componentName}> {
+  ref?: Ref<${componentName}>
 ${ifaceProps.join("\n")}
 }
 
@@ -209,9 +180,7 @@ ${ifaceProps.join("\n")}
  */
 export default function ${componentName}(props: ${propsInterface}): ReactNode;
     `,
-      {
-        parser: "babel-ts",
-      }
+      PRETTIER_CONFIG
     );
 
     fs.writeFileSync(componentDef, source, "utf8");
