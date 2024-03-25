@@ -26,15 +26,6 @@ You can also follow their docs for [cherry-picking](https://shoelace.style/getti
 or [bundling](https://shoelace.style/getting-started/installation#bundling) to reduce the download
 required.
 
-Alternatively this package publishes the theme and a minified bundle of shoelace. Because this loads
-as a normal script it has the side effect of blocking rendering until loaded, but that also reduces
-the chances of rendering the page before the web component definitions have loaded:
-
-```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shoelace-react@0.7.0/cdn/themes/light.css" />
-<script src="https://cdn.jsdelivr.net/npm/shoelace-react@0.7.0/cdn/shoelace.js"></script>
-```
-
 # Usage
 
 Import the component you want and use it as a normal react element. The components should have the
@@ -59,3 +50,5 @@ const App = () => (
   </>
 );
 ```
+
+All components also accept a `ref` prop which gives you access to the custom element.
