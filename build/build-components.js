@@ -62,7 +62,7 @@ export async function buildComponents(baseDir) {
     let componentDef = path.join(reactDir, `${tagWithoutPrefix}.d.ts`);
 
     indexJs.push(
-      `export { default as ${componentName}, ${componentName}Element } from "./components/${tagWithoutPrefix}.js"`
+      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js"`
     );
     indexDts.push(
       `export { default as ${componentName}, ${componentName}Element, ${propsInterface} } from "./components/${tagWithoutPrefix}.js"`
@@ -121,8 +121,6 @@ export async function buildComponents(baseDir) {
 /* eslint-disable react/prop-types */
 import { memo, forwardRef, createElement } from "react";
 import { useComponentProps, useComponentRef } from "../util.js";
-
-export { default as ${componentName}Element } from "@shoelace-style/shoelace/dist/${module}";
 
 const PROP_MAP = ${JSON.stringify(componentPropMap)};
 
