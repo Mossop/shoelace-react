@@ -62,10 +62,10 @@ export async function buildComponents(baseDir) {
     let componentDef = path.join(reactDir, `${tagWithoutPrefix}.d.ts`);
 
     indexJs.push(
-      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js"`
+      `export { default as ${componentName}, ${componentName}Element } from "./components/${tagWithoutPrefix}.js"`
     );
     indexDts.push(
-      `export { default as ${componentName}, ${propsInterface} } from "./components/${tagWithoutPrefix}.js"`
+      `export { default as ${componentName}, ${componentName}Element, ${propsInterface} } from "./components/${tagWithoutPrefix}.js"`
     );
 
     let ifaceProps = [];
@@ -159,19 +159,19 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
     let eventsDef = Array.from(
       eventNames.entries(),
       ([name, types]) =>
-        `export type ${name} = ShoelaceEvent<${componentName}, ${types.join(" | ")}>;`
+        `export type ${name} = ShoelaceEvent<${componentName}Element, ${types.join(" | ")}>;`
     );
 
     source = await prettier.format(
       `
-import type { ReactNode, HTMLAttributes, ReactEventHandler } from "react";
-import type ${componentName} from "@shoelace-style/shoelace/dist/${module}";
+import type { ReactNode, HTMLAttributes } from "react";
+import type ${componentName}Element from "@shoelace-style/shoelace/dist/${module}";
 import type { ShoelaceEvent } from "../util";
 
 ${eventsDef.join("\n")}
 
-export interface ${propsInterface} extends HTMLAttributes<${componentName}> {
-  ref?: Ref<${componentName}>
+export interface ${propsInterface} extends HTMLAttributes<${componentName}Element> {
+  ref?: Ref<${componentName}Element>
 ${ifaceProps.join("\n")}
 }
 
