@@ -164,7 +164,7 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
 
     source = await prettier.format(
       `
-import type { ReactNode, HTMLAttributes } from "react";
+import type { ReactNode, HTMLAttributes, Ref } from "react";
 import type ${componentName}Element from "@shoelace-style/shoelace/dist/${module}";
 import type { ShoelaceEvent } from "../util";
 
