@@ -122,6 +122,8 @@ export async function buildComponents(baseDir) {
 import { memo, forwardRef, createElement } from "react";
 import { useComponentProps, useComponentRef } from "../util.js";
 
+export { default as ${componentName}Element } from "@shoelace-style/shoelace/dist/${module}";
+
 const PROP_MAP = ${JSON.stringify(componentPropMap)};
 
 const PROP_DEFAULTS = {
@@ -167,6 +169,8 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
 import type { ReactNode, HTMLAttributes, Ref } from "react";
 import type ${componentName}Element from "@shoelace-style/shoelace/dist/${module}";
 import type { ShoelaceEvent } from "../util";
+
+export type { ${componentName}Element };
 
 ${eventsDef.join("\n")}
 
