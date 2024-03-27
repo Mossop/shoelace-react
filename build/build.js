@@ -196,3 +196,5 @@ export default function ${componentName}(props: ${propsInterface}): ReactNode;
   fs.rmSync(index, { force: true });
   fs.writeFileSync(index, indexDts.join("\n"), "utf8");
 }
+
+await buildComponents(path.dirname(import.meta.dirname));
