@@ -7,17 +7,21 @@ const PRETTIER_CONFIG = {
 };
 
 function* events(metadata) {
-  let seenEvents = new Set();
+  let seenEvents = new Map();
 
   for (let module of metadata.modules) {
     for (let declaration of module.declarations) {
       if (declaration.customElement) {
         for (let event of declaration.events ?? []) {
-          if (seenEvents.has(event.eventName)) {
+          let seenEvent = seenEvents.get(event.eventName);
+          if (seenEvent) {
+            if (seenEvent.name != event.name) {
+              throw new Error(`Name mismatch for ${event.eventName} event`);
+            }
             continue;
           }
 
-          seenEvents.add(event.eventName);
+          seenEvents.set(event.eventName, event);
 
           yield event;
         }
@@ -59,7 +63,7 @@ async function buildEvents(metadata, baseDir) {
 
   for (let event of events(metadata)) {
     eventDefs.push(
-      `export type ${event.eventName}<T = HTMLElement> = ShoelaceEvent<T, "${event.name}">;`
+      `export type ${event.eventName}<T = HTMLElement, D = any> = ShoelaceEvent<T, "${event.name}", D>;`
     );
   }
 
@@ -83,7 +87,6 @@ async function buildComponents(metadata, baseDir) {
   for (let [module, component] of components(metadata)) {
     let componentName = component.name;
 
-    let usedEvents = [];
     let tagName = component.tagName;
     let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
     let componentFile = path.join(reactDir, `${tagWithoutPrefix}.js`);
@@ -91,7 +94,6 @@ async function buildComponents(metadata, baseDir) {
 
     let ifaceProps = [];
 
-    let eventDefs = {};
     let componentPropMap = {};
     let attrDefaults = [];
 
@@ -112,8 +114,35 @@ async function buildComponents(metadata, baseDir) {
       }
     }
 
+    let usedEvents = [];
+    let eventDefs = {};
+
+    let eventExports = [];
+
     for (let event of component.events ?? []) {
+      if (usedEvents.includes(event.eventName)) {
+        throw new Error(
+          `Componetn ${componentName} uses ${event.eventName} multiple times`
+        );
+      }
+
       usedEvents.push(event.eventName);
+
+      let eventName = componentName + event.eventName.substring(2);
+
+      if (event.type?.text) {
+        eventExports.push(
+          `export type ${event.eventName}Detail = ${event.type.text}`
+        );
+
+        eventExports.push(
+          `export type ${eventName} = ${event.eventName}<${componentName}Element, ${event.eventName}Detail>;`
+        );
+      } else {
+        eventExports.push(
+          `export type ${eventName} = ${event.eventName}<${componentName}Element>;`
+        );
+      }
 
       eventDefs[event.reactName] = [event.name, false];
       eventDefs[`${event.reactName}Capture`] = [event.name, true];
@@ -122,13 +151,13 @@ async function buildComponents(metadata, baseDir) {
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}?: (event: ${event.eventName}<${componentName}Element>) => void;`
+        ${event.reactName}?: (event: ${eventName}) => void;`
       );
       ifaceProps.push(
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}Capture?: (event: ${event.eventName}<${componentName}Element>) => void;`
+        ${event.reactName}Capture?: (event: ${eventName}) => void;`
       );
     }
 
@@ -184,6 +213,8 @@ ${eventImports}
 
 export type { ${componentName}Element };
 
+${eventExports.join("\n")}
+
 export interface ${componentName}Props extends HTMLAttributes<${componentName}Element> {
   ref?: Ref<${componentName}Element>
 ${ifaceProps.join("\n")}
@@ -203,19 +234,19 @@ async function buildIndexes(metadata, baseDir) {
   let indexJs = [];
   let indexDts = [];
 
-  let names = Array.from(events(metadata), (e) => e.eventName);
-  indexDts.push(`export { ${names.join(", ")} } from "./events";\n`);
+  indexDts.push(`export * from "./events";\n`);
 
   for (let [, component] of components(metadata)) {
     let componentName = component.name;
     let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
 
     indexJs.push(
-      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js"`
+      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js";`
     );
     indexDts.push(
-      `export { default as ${componentName}, ${componentName}Element, ${componentName}Props } from "./components/${tagWithoutPrefix}.js"`
+      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js";`
     );
+    indexDts.push(`export * from "./components/${tagWithoutPrefix}.js";`);
   }
 
   await writeSource(
