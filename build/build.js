@@ -6,6 +6,26 @@ const PRETTIER_CONFIG = {
   parser: "babel-ts",
 };
 
+function* events(metadata) {
+  let seenEvents = new Set();
+
+  for (let module of metadata.modules) {
+    for (let declaration of module.declarations) {
+      if (declaration.customElement) {
+        for (let event of declaration.events ?? []) {
+          if (seenEvents.has(event.eventName)) {
+            continue;
+          }
+
+          seenEvents.add(event.eventName);
+
+          yield event;
+        }
+      }
+    }
+  }
+}
+
 function* components(metadata) {
   for (let module of metadata.modules) {
     for (let declaration of module.declarations) {
@@ -29,44 +49,45 @@ function linewrapComment(comment) {
   return lines.join("\n");
 }
 
-export async function buildComponents(baseDir) {
+async function writeSource(fileName, source) {
+  let prettified = await prettier.format(source, PRETTIER_CONFIG);
+  await fs.writeFile(fileName, prettified, "utf8");
+}
+
+async function buildEvents(metadata, baseDir) {
+  let eventDefs = [];
+
+  for (let event of events(metadata)) {
+    eventDefs.push(
+      `export type ${event.eventName}<T = HTMLElement> = ShoelaceEvent<T, "${event.name}">;`
+    );
+  }
+
+  await writeSource(
+    path.join(baseDir, "events.d.ts"),
+    `
+import type { ShoelaceEvent } from "./util";
+
+${eventDefs.join("\n")}
+    `
+  );
+}
+
+async function buildComponents(metadata, baseDir) {
   let reactDir = path.join(baseDir, "components");
 
   // Clear build directory
   await fs.rm(reactDir, { recursive: true, force: true });
   await fs.mkdir(reactDir, { recursive: true });
 
-  // Fetch component metadata
-  let metadata = JSON.parse(
-    await fs.readFile(
-      new URL(
-        import.meta.resolve(
-          "@shoelace-style/shoelace/dist/custom-elements.json"
-        )
-      ),
-      "utf8"
-    )
-  );
-
-  let indexJs = [];
-  let indexDts = [];
-
   for (let [module, component] of components(metadata)) {
     let componentName = component.name;
 
-    let eventNames = new Map();
-    let propsInterface = `${componentName}Props`;
+    let usedEvents = [];
     let tagName = component.tagName;
     let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
     let componentFile = path.join(reactDir, `${tagWithoutPrefix}.js`);
     let componentDef = path.join(reactDir, `${tagWithoutPrefix}.d.ts`);
-
-    indexJs.push(
-      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js"`
-    );
-    indexDts.push(
-      `export { default as ${componentName}, ${componentName}Element, ${propsInterface} } from "./components/${tagWithoutPrefix}.js"`
-    );
 
     let ifaceProps = [];
 
@@ -92,12 +113,7 @@ export async function buildComponents(baseDir) {
     }
 
     for (let event of component.events ?? []) {
-      let eventTypes = eventNames.get(event.eventName);
-      if (!eventTypes) {
-        eventNames.set(event.eventName, [`"${event.name}"`]);
-      } else {
-        eventTypes.push(`"${event.name}"`);
-      }
+      usedEvents.push(event.eventName);
 
       eventDefs[event.reactName] = [event.name, false];
       eventDefs[`${event.reactName}Capture`] = [event.name, true];
@@ -106,17 +122,18 @@ export async function buildComponents(baseDir) {
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}?: (event: ${event.eventName}) => void;`
+        ${event.reactName}?: (event: ${event.eventName}<${componentName}Element>) => void;`
       );
       ifaceProps.push(
         `  /**
          * ${linewrapComment(event.description)}
          */
-        ${event.reactName}Capture?: (event: ${event.eventName}) => void;`
+        ${event.reactName}Capture?: (event: ${event.eventName}<${componentName}Element>) => void;`
       );
     }
 
-    let source = await prettier.format(
+    await writeSource(
+      componentFile,
       `
 /* eslint-disable react/prop-types */
 import { memo, forwardRef, createElement } from "react";
@@ -133,7 +150,7 @@ const EVENT_DEFINITIONS = ${JSON.stringify(eventDefs)};
 /**
  * ${linewrapComment(component.summary)}
  *
- * @param {${propsInterface}} props
+ * @param {${componentName}Props} props
  * @returns {ReactNode}
  */
 export default memo(forwardRef(function ${componentName}(props, outerRef) {
@@ -154,25 +171,20 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
       PRETTIER_CONFIG
     );
 
-    await fs.writeFile(componentFile, source, "utf8");
+    let eventImports = usedEvents.length
+      ? `import { ${usedEvents.join(", ")} } from "../events";`
+      : "";
 
-    let eventsDef = Array.from(
-      eventNames.entries(),
-      ([name, types]) =>
-        `export type ${name} = ShoelaceEvent<${componentName}Element, ${types.join(" | ")}>;`
-    );
-
-    source = await prettier.format(
+    await writeSource(
+      componentDef,
       `
 import type { ReactNode, HTMLAttributes, Ref } from "react";
 import type ${componentName}Element from "@shoelace-style/shoelace/dist/${module}";
-import type { ShoelaceEvent } from "../util";
+${eventImports}
 
 export type { ${componentName}Element };
 
-${eventsDef.join("\n")}
-
-export interface ${propsInterface} extends HTMLAttributes<${componentName}Element> {
+export interface ${componentName}Props extends HTMLAttributes<${componentName}Element> {
   ref?: Ref<${componentName}Element>
 ${ifaceProps.join("\n")}
 }
@@ -180,21 +192,59 @@ ${ifaceProps.join("\n")}
 /**
  * ${linewrapComment(component.summary)}
  */
-export default function ${componentName}(props: ${propsInterface}): ReactNode;
+export default function ${componentName}(props: ${componentName}Props): ReactNode;
     `,
       PRETTIER_CONFIG
     );
-
-    await fs.writeFile(componentDef, source, "utf8");
   }
-
-  let index = path.join(baseDir, "index.js");
-  await fs.rm(index, { force: true });
-  await fs.writeFile(index, indexJs.join("\n"), "utf8");
-
-  index = path.join(baseDir, "index.d.ts");
-  await fs.rm(index, { force: true });
-  await fs.writeFile(index, indexDts.join("\n"), "utf8");
 }
 
-await buildComponents(path.dirname(import.meta.dirname));
+async function buildIndexes(metadata, baseDir) {
+  let indexJs = [];
+  let indexDts = [];
+
+  let names = Array.from(events(metadata), (e) => e.eventName);
+  indexDts.push(`export { ${names.join(", ")} } from "./events";\n`);
+
+  for (let [, component] of components(metadata)) {
+    let componentName = component.name;
+    let tagWithoutPrefix = component.tagName.replace(/^sl-/, "");
+
+    indexJs.push(
+      `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js"`
+    );
+    indexDts.push(
+      `export { default as ${componentName}, ${componentName}Element, ${componentName}Props } from "./components/${tagWithoutPrefix}.js"`
+    );
+  }
+
+  await writeSource(
+    path.join(baseDir, "index.js"),
+    `
+${indexJs.join("\n")}
+    `
+  );
+
+  await writeSource(
+    path.join(baseDir, "index.d.ts"),
+    `
+${indexDts.join("\n")}
+    `
+  );
+}
+
+// Fetch component metadata
+let metadata = JSON.parse(
+  await fs.readFile(
+    new URL(
+      import.meta.resolve("@shoelace-style/shoelace/dist/custom-elements.json")
+    ),
+    "utf8"
+  )
+);
+
+let baseDir = path.dirname(import.meta.dirname);
+
+await buildEvents(metadata, baseDir);
+await buildComponents(metadata, baseDir);
+await buildIndexes(metadata, baseDir);

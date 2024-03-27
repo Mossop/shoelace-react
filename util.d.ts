@@ -1,8 +1,8 @@
-import type { BaseSyntheticEvent } from "react";
-
 export type ShoelaceEvent<T, N extends string> = Omit<
-  BaseSyntheticEvent<CustomEvent, T, T>,
-  "type"
+  CustomEvent,
+  "type" | "currentTarget" | "target"
 > & {
   type: N;
+  currentTarget: T;
+  target: T;
 };
