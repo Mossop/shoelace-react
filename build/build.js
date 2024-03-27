@@ -1,4 +1,4 @@
-import fs from "fs";
+import { promises as fs } from "fs";
 import path from "path";
 import prettier from "prettier";
 
@@ -33,12 +33,12 @@ export async function buildComponents(baseDir) {
   let reactDir = path.join(baseDir, "components");
 
   // Clear build directory
-  fs.rmSync(reactDir, { recursive: true, force: true });
-  fs.mkdirSync(reactDir, { recursive: true });
+  await fs.rm(reactDir, { recursive: true, force: true });
+  await fs.mkdir(reactDir, { recursive: true });
 
   // Fetch component metadata
   let metadata = JSON.parse(
-    fs.readFileSync(
+    await fs.readFile(
       new URL(
         import.meta.resolve(
           "@shoelace-style/shoelace/dist/custom-elements.json"
@@ -154,7 +154,7 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
       PRETTIER_CONFIG
     );
 
-    fs.writeFileSync(componentFile, source, "utf8");
+    await fs.writeFile(componentFile, source, "utf8");
 
     let eventsDef = Array.from(
       eventNames.entries(),
@@ -185,16 +185,16 @@ export default function ${componentName}(props: ${propsInterface}): ReactNode;
       PRETTIER_CONFIG
     );
 
-    fs.writeFileSync(componentDef, source, "utf8");
+    await fs.writeFile(componentDef, source, "utf8");
   }
 
   let index = path.join(baseDir, "index.js");
-  fs.rmSync(index, { force: true });
-  fs.writeFileSync(index, indexJs.join("\n"), "utf8");
+  await fs.rm(index, { force: true });
+  await fs.writeFile(index, indexJs.join("\n"), "utf8");
 
   index = path.join(baseDir, "index.d.ts");
-  fs.rmSync(index, { force: true });
-  fs.writeFileSync(index, indexDts.join("\n"), "utf8");
+  await fs.rm(index, { force: true });
+  await fs.writeFile(index, indexDts.join("\n"), "utf8");
 }
 
 await buildComponents(path.dirname(import.meta.dirname));
