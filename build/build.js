@@ -244,6 +244,9 @@ async function buildIndexes(metadata, baseDir) {
       `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js";`
     );
     indexDts.push(
+      `import { ${componentName}Element } from "./components/${tagWithoutPrefix}.js";`
+    );
+    indexDts.push(
       `export { default as ${componentName} } from "./components/${tagWithoutPrefix}.js";`
     );
     indexDts.push(`export * from "./components/${tagWithoutPrefix}.js";`);
@@ -255,6 +258,15 @@ async function buildIndexes(metadata, baseDir) {
 ${indexJs.join("\n")}
     `
   );
+
+  indexDts.push(`
+    declare global {
+      interface HTMLElementTagNameMap {
+  `);
+  for (let [, component] of components(metadata)) {
+    indexDts.push(`"${component.tagName}": ${component.name}Element;`);
+  }
+  indexDts.push(`}}`);
 
   await writeSource(
     path.join(baseDir, "index.d.ts"),
