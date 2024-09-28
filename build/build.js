@@ -132,7 +132,7 @@ async function buildComponents(metadata, baseDir) {
 
       if (event.type?.text) {
         eventExports.push(
-          `export type ${event.eventName}Detail = ${event.type.text}`
+          `export type ${eventName}Detail = ${event.type.text}`
         );
 
         eventExports.push(
