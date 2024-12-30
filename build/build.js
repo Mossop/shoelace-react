@@ -6,6 +6,15 @@ const PRETTIER_CONFIG = {
   parser: "babel-ts",
 };
 
+function nameToProp(name) {
+  let ucFirst = (st) => st[0].toUpperCase() + st.slice(1);
+
+  return name
+    .split("-")
+    .map((part, idx) => (idx == 0 ? part : ucFirst(part)))
+    .join("");
+}
+
 function* events(metadata) {
   let seenEvents = new Map();
 
@@ -98,19 +107,21 @@ async function buildComponents(metadata, baseDir) {
     let attrDefaults = [];
 
     for (let attr of component.attributes ?? []) {
+      let propName = nameToProp(attr.name);
+
       ifaceProps.push(
         `/**
          * ${linewrapComment(attr.description)}
          */
-        ${attr.fieldName}?: ${attr.type?.text ?? "any"};`
+        ${propName}?: ${attr.type?.text ?? "any"};`
       );
 
       if (attr.default && attr.default != "''" && attr.default != "false") {
-        attrDefaults.push(`${attr.fieldName}: ${attr.default}`);
+        attrDefaults.push(`${propName}: ${attr.default}`);
       }
 
-      if (attr.name != attr.fieldName) {
-        componentPropMap[attr.fieldName] = attr.name;
+      if (attr.name != propName) {
+        componentPropMap[propName] = attr.name;
       }
     }
 
@@ -180,7 +191,7 @@ const EVENT_DEFINITIONS = ${JSON.stringify(eventDefs)};
  * ${linewrapComment(component.summary)}
  *
  * @param {${componentName}Props} props
- * @returns {ReactNode}
+ * @returns {ReactElement<${componentName}Props, "${tagName}">}
  */
 export default memo(forwardRef(function ${componentName}(props, outerRef) {
   let [componentProps, events, children] = useComponentProps(props, PROP_MAP, PROP_DEFAULTS, EVENT_DEFINITIONS);
@@ -207,7 +218,7 @@ export default memo(forwardRef(function ${componentName}(props, outerRef) {
     await writeSource(
       componentDef,
       `
-import type { ReactNode, HTMLAttributes, Ref } from "react";
+import type { ReactElement, HTMLAttributes, Ref } from "react";
 import type ${componentName}Element from "@shoelace-style/shoelace/dist/${module}";
 ${eventImports}
 
@@ -223,7 +234,7 @@ ${ifaceProps.join("\n")}
 /**
  * ${linewrapComment(component.summary)}
  */
-export default function ${componentName}(props: ${componentName}Props): ReactNode;
+export default function ${componentName}(props: ${componentName}Props): ReactElement<${componentName}Props, "${tagName}">;
     `,
       PRETTIER_CONFIG
     );
