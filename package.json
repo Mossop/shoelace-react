@@ -29,7 +29,7 @@
     "react": "^18 || ^19"
   },
   "dependencies": {
-    "@shoelace-style/shoelace": "2.19.1"
+    "@shoelace-style/shoelace": "2.20.1"
   },
   "devDependencies": {
     "esbuild": "^0.24.2",
