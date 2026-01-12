@@ -24,7 +24,7 @@ export function useComponentProps(props, propMap, propDefaults, eventDefs) {
     let events = { ...baseEvents };
 
     for (let [name, value] of Object.entries(defaultedProps)) {
-      if (value === false || value === undefined || value === null) {
+      if (value === undefined || value === null) {
         continue;
       }
 
