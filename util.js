@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 
 const REACT_PROPS = {
   className: "class",
@@ -46,17 +46,17 @@ export function useComponentProps(props, propMap, propDefaults, eventDefs) {
 }
 
 export function useComponentRef(outerRef, events, eventDefs) {
-  let [component, setComponent] = useState(null);
+  let component = useRef(null);
 
   let updateComponent = useCallback(
-    (component) => {
-      setComponent(component);
+    (newComponent) => {
+      component.current = newComponent;
 
       if (outerRef) {
         if (typeof outerRef == "function") {
-          outerRef(component);
+          outerRef(newComponent);
         } else {
-          outerRef.current = component;
+          outerRef.current = newComponent;
         }
       }
     },
@@ -66,11 +66,15 @@ export function useComponentRef(outerRef, events, eventDefs) {
   // eventDefs is considered to be static so this is safe.
   for (let [prop, [eventType, capturing]] of Object.entries(eventDefs)) {
     useEffect(() => {
-      if (component && events[prop]) {
-        component.addEventListener(eventType, events[prop], capturing);
+      if (events[prop]) {
+        component.current?.addEventListener(eventType, events[prop], capturing);
 
         return () => {
-          component.removeEventListener(eventType, events[prop], capturing);
+          component.current?.removeEventListener(
+            eventType,
+            events[prop],
+            capturing
+          );
         };
       }
     }, [prop, component, events[prop]]);
